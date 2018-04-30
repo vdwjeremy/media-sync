@@ -13,10 +13,10 @@ db = None
 def hash_file(path):
     h = hashlib.sha256()
     with open(path, 'rb') as f:
-        chunck = f.read(100*1024)
-        while len(chunck) > 0:
-            h.update(chunck)
-            chunck = f.read(100 * 1024)
+        chunk = f.read(100*1024)
+        while len(chunk) > 0:
+            h.update(chunk)
+            chunk = f.read(100 * 1024)
     return h.hexdigest()
 
 
@@ -51,13 +51,15 @@ class Repository:
     # 'ref' is its unique identifier
     # 'tmp_file_path' is the content of the file, it must must a copy as it will be moved/deleted by 'Repository'
     def add_file(self, ref, tmp_file_path):
-        print('adding %s of size %ik' % (ref, os.path.getsize(tmp_file_path)/1024))
+        global db
+        print('adding %s' % ref)
         file_hash = hash_file(tmp_file_path)
         date_taken = find_date_taken(tmp_file_path)
         # Insert a row of data
         db.execute("INSERT INTO %s VALUES (?, ?, ?)" % self.name, (ref, file_hash, date_taken))
         db.commit()
-        shutil.move(tmp_file_path, file_hash)
+        #shutil.move(tmp_file_path, file_hash)
+        os.remove(tmp_file_path)
 
     # returns true if the media identified as 'ref' is known in the repository
     def has(self, ref):
@@ -65,6 +67,35 @@ class Repository:
         c = db.cursor()
         c.execute('SELECT ref FROM %s WHERE ref=?' % self.name, (ref,))
         return c.fetchone() is not None
+
+    # go through all hashes and eventually reorganize/complete files (depending on the implementation)
+    def standardize(self):
+        global db
+        c = db.cursor()
+        c.execute('SELECT DISTINCT hash FROM %s' % self.name)
+        with open('%s.hash.list' % self.name, 'w') as f:
+            row = c.fetchone()
+            while row is not None:
+                f.write(row[0] + '\n')
+                row = c.fetchone()
+        with open('%s.hash.list' % self.name, 'r') as f:
+            for line in f:
+                h = line.strip()
+                c.execute('SELECT ref, date_taken FROM %s WHERE hash=?' % self.name, (h,))
+                self.standardize_single_hash(h, c.fetchall())
+
+    def delete(self, ref):
+        print('deleting %s' % ref)
+        global db
+        c = db.cursor()
+        c.execute('DELETE FROM %s WHERE ref=?' % self.name, (ref,))
+        db.commit()
+
+    def rename(self, ref, new_ref):
+        print('renaming %s -> %s' % (ref, new_ref))
+        global db
+        db.execute('UPDATE %s SET ref=? WHERE ref=?' % self.name, (new_ref, ref))
+        db.commit()
 
 
 class Local(Repository):
@@ -81,3 +112,55 @@ class Local(Repository):
                     shutil.copy2(fpath, 'tmp')
                     self.add_file(ref, 'tmp')
 
+    def standardize_single_hash(self, file_hash,  medias):
+        main_file = None
+        dupes = []
+        # check existence
+        for (ref, date_taken) in medias:
+            if not os.path.isfile(os.path.join(self.path, ref)):
+                self.delete(ref)
+            elif main_file is None and not str(ref).startswith('dupe'):
+                main_file = (ref, date_taken)
+            else:
+                dupes.append((ref, date_taken))
+        # elect a master
+        if main_file is None:
+            if len(dupes) == 0:
+                print('no valid file found for %s' % file_hash)
+                return
+            else:
+                main_file = dupes.pop()
+        # standardize master
+        path = str(main_file[0])
+        date = datetime.fromtimestamp(int(main_file[1]))
+        std_path = os.path.join(date.strftime('%Y'),
+                                date.strftime('%Y-%m-%d %H-%M-%S') + os.path.splitext(path)[1])
+        self.move(path, std_path)
+        # standardize dupes
+        for dupe in dupes:
+            path = str(dupe[0])
+            date = datetime.fromtimestamp(int(dupe[1]))
+            std_path = os.path.join('dupes',
+                                    date.strftime('%Y'),
+                                    date.strftime('%Y-%m-%d %H-%M-%S') + os.path.splitext(path)[1])
+            self.move(path, std_path)
+
+    def move(self, from_path, to_path):
+        if from_path == to_path:
+            return
+        new_path = to_path
+        num = 1
+        while os.path.isfile(os.path.join(self.path, new_path)):
+            new_path = (' %i' % num).join(os.path.splitext(to_path))
+            num += 1
+            if from_path == new_path:
+                return
+        directory = os.path.dirname(os.path.join(self.path, new_path))
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        shutil.move(os.path.join(self.path, from_path), os.path.join(self.path, new_path))
+        self.rename(from_path, new_path)
+
+    def check_access(self):
+        pass
+        # TODO
