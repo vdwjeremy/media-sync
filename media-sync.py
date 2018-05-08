@@ -16,9 +16,9 @@ repos = [
 ]
 
 # prod
-repos = [
-    LocalRepo('atrier', 'C:\\Users\\jvandewoestyne\\Pictures\\photos a trier')
-]
+#repos = [
+#    LocalRepo('atrier', 'C:\\Users\\jvandewoestyne\\Pictures\\photos a trier')
+#]
 
 # refresh repositories
 for repo in repos:
@@ -26,6 +26,11 @@ for repo in repos:
 # standardize paths / dedupe files
 for repo in repos:
     repo.standardize()
+# cross upload
+for repo_src in repos:
+    for repo_dst in repos:
+        if repo_src != repo_dst:
+            repo_dst.sync_from(repo_src)
 
 
 #db.close()

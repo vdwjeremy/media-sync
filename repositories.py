@@ -58,7 +58,7 @@ class Repository:
         # Insert a row of data
         db.execute("INSERT INTO %s VALUES (?, ?, ?)" % self.name, (ref, file_hash, date_taken))
         db.commit()
-        #shutil.move(tmp_file_path, file_hash)
+        #shutil.move(tmp_file_path, file_hash) # in case we want to reuse it after
         os.remove(tmp_file_path)
 
     # returns true if the media identified as 'ref' is known in the repository
@@ -87,8 +87,7 @@ class Repository:
     def delete(self, ref):
         print('deleting %s' % ref)
         global db
-        c = db.cursor()
-        c.execute('DELETE FROM %s WHERE ref=?' % self.name, (ref,))
+        db.execute('DELETE FROM %s WHERE ref=?' % self.name, (ref,))
         db.commit()
 
     def rename(self, ref, new_ref):
@@ -96,6 +95,27 @@ class Repository:
         global db
         db.execute('UPDATE %s SET ref=? WHERE ref=?' % self.name, (new_ref, ref))
         db.commit()
+
+    def sync_from(self, other):
+        print('cross upload %s -> %s' % (other.name, self.name))
+        global db
+        c = db.cursor()
+        c.execute('SELECT DISTINCT hash FROM %s EXCEPT SELECT DISTINCT hash FROM %s' % (other.name, self.name))
+        with open('%s_to_%s.hash.list' % (other.name, self.name), 'w') as f:
+            row = c.fetchone()
+            while row is not None:
+                f.write(row[0] + '\n')
+                row = c.fetchone()
+        c.close()
+        with open('%s_to_%s.hash.list' % (other.name, self.name), 'r') as f:
+            for line in f:
+                h = line.strip()
+                c = db.cursor()
+                c.execute('SELECT ref FROM %s WHERE hash=?' % other.name, (h,))
+                ref = str(c.fetchone()[0])
+                c.close()
+                tmp_file = other.download(ref)
+                self.upload(tmp_file)
 
 
 class Local(Repository):
@@ -162,5 +182,31 @@ class Local(Repository):
         self.rename(from_path, new_path)
 
     def check_access(self):
-        pass
         # TODO
+        return True
+
+    # 'ref' is the id as defined in the database
+    # return the path to the local file
+    def download(self, ref):
+        dst = os.path.basename(ref)
+        shutil.copy2(os.path.join(self.path, ref), dst)
+        return dst
+
+    # 'path' is the path to the local file to upload
+    def upload(self, local_file_path):
+        date = datetime.fromtimestamp(find_date_taken(local_file_path))
+        std_path = os.path.join(date.strftime('%Y'),
+                                date.strftime('%Y-%m-%d %H-%M-%S') + os.path.splitext(local_file_path)[1])
+        new_path = std_path
+        num = 1
+        while os.path.isfile(os.path.join(self.path, new_path)):
+            new_path = (' %i' % num).join(os.path.splitext(std_path))
+            num += 1
+
+        directory = os.path.dirname(os.path.join(self.path, new_path))
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        shutil.copy2(local_file_path, os.path.join(self.path, new_path))
+        self.add_file(new_path, local_file_path)
+
+
