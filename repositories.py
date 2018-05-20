@@ -5,6 +5,7 @@ import shutil
 import hashlib
 import exifread
 from datetime import datetime
+import stat
 
 
 db = None
@@ -59,6 +60,7 @@ class Repository:
         db.execute("INSERT INTO %s VALUES (?, ?, ?)" % self.name, (ref, file_hash, date_taken))
         db.commit()
         #shutil.move(tmp_file_path, file_hash) # in case we want to reuse it after
+        os.chmod(tmp_file_path, stat.S_IWRITE)
         os.remove(tmp_file_path)
 
     # returns true if the media identified as 'ref' is known in the repository
@@ -70,6 +72,7 @@ class Repository:
 
     # go through all hashes and eventually reorganize/complete files (depending on the implementation)
     def standardize(self):
+        print('standardize %s' % self.name)
         global db
         c = db.cursor()
         c.execute('SELECT DISTINCT hash FROM %s' % self.name)
@@ -119,18 +122,20 @@ class Repository:
 
 
 class Local(Repository):
-    def __init__(self, name, path):
+    def __init__(self, name, path, fingerprint):
         Repository.__init__(self, name)
         self.path = path
+        self.fingerprint = fingerprint
 
     def refresh(self):
+        print('refresh %s' % self.name)
         for dirName, subdirList, fileList in os.walk(self.path):
             for fname in fileList:
                 fpath = os.path.join(dirName, fname)
                 ref = os.path.relpath(fpath, self.path)
-                if not self.has(ref):
-                    shutil.copy2(fpath, 'tmp')
-                    self.add_file(ref, 'tmp')
+                if not self.has(ref) and ref != 'fingerprint':
+                    shutil.copy2(fpath, fname)
+                    self.add_file(ref, fname)
 
     def standardize_single_hash(self, file_hash,  medias):
         main_file = None
@@ -152,14 +157,14 @@ class Local(Repository):
                 main_file = dupes.pop()
         # standardize master
         path = str(main_file[0])
-        date = datetime.fromtimestamp(int(main_file[1]))
+        date = datetime.utcfromtimestamp(int(main_file[1]))
         std_path = os.path.join(date.strftime('%Y'),
                                 date.strftime('%Y-%m-%d %H-%M-%S') + os.path.splitext(path)[1])
         self.move(path, std_path)
         # standardize dupes
         for dupe in dupes:
             path = str(dupe[0])
-            date = datetime.fromtimestamp(int(dupe[1]))
+            date = datetime.utcfromtimestamp(int(dupe[1]))
             std_path = os.path.join('dupes',
                                     date.strftime('%Y'),
                                     date.strftime('%Y-%m-%d %H-%M-%S') + os.path.splitext(path)[1])
@@ -182,8 +187,13 @@ class Local(Repository):
         self.rename(from_path, new_path)
 
     def check_access(self):
-        # TODO
-        return True
+        path = os.path.join(self.path, 'fingerprint')
+        if os.path.isfile(path):
+            with open(path, 'r') as f:
+                for line in f:
+                    if line.strip() == self.fingerprint:
+                        return True
+        return False
 
     # 'ref' is the id as defined in the database
     # return the path to the local file
@@ -194,7 +204,7 @@ class Local(Repository):
 
     # 'path' is the path to the local file to upload
     def upload(self, local_file_path):
-        date = datetime.fromtimestamp(find_date_taken(local_file_path))
+        date = datetime.utcfromtimestamp(find_date_taken(local_file_path))
         std_path = os.path.join(date.strftime('%Y'),
                                 date.strftime('%Y-%m-%d %H-%M-%S') + os.path.splitext(local_file_path)[1])
         new_path = std_path
@@ -210,3 +220,4 @@ class Local(Repository):
         self.add_file(new_path, local_file_path)
 
 
+# TODO flickr https://stuvel.eu/flickrapi-doc/
