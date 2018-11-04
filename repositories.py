@@ -159,6 +159,7 @@ class Local(Repository):
         path = str(main_file[0])
         date = datetime.utcfromtimestamp(int(main_file[1]))
         std_path = os.path.join(date.strftime('%Y'),
+                                date.strftime('%m'),
                                 date.strftime('%Y-%m-%d %H-%M-%S') + os.path.splitext(path)[1])
         self.move(path, std_path)
         # standardize dupes
@@ -167,6 +168,7 @@ class Local(Repository):
             date = datetime.utcfromtimestamp(int(dupe[1]))
             std_path = os.path.join('dupes',
                                     date.strftime('%Y'),
+                                    date.strftime('%m'),
                                     date.strftime('%Y-%m-%d %H-%M-%S') + os.path.splitext(path)[1])
             self.move(path, std_path)
 
@@ -206,6 +208,7 @@ class Local(Repository):
     def upload(self, local_file_path):
         date = datetime.utcfromtimestamp(find_date_taken(local_file_path))
         std_path = os.path.join(date.strftime('%Y'),
+                                date.strftime('%m'),
                                 date.strftime('%Y-%m-%d %H-%M-%S') + os.path.splitext(local_file_path)[1])
         new_path = std_path
         num = 1
