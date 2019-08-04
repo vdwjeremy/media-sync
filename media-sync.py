@@ -8,15 +8,19 @@ os.chdir(os.path.join(script_dir, 'workspace'))
 # each cluster as a set of repositories which share the same files
 clusters = [
     # test
+    #[
+    #    LocalRepo('folder1', os.path.join(script_dir, 'folder1'), 'wGn*$g63ZXs^peTJGPw&yV7TS#'),
+    #    LocalRepo('folder2', os.path.join(script_dir, 'folder2'), 'BGr4B5SZjr*HsdRztJ2qCbyJ$9'),
+    #    LocalRepo('nas_test', 'X:\\Photos\\test', 'wGn*$g63ZXs^peTJGPwcyV7TS#')
+    #],
+    #[
+    #    LocalRepo('local_2015_2020', 'C:\\Users\\jvandewoestyne\\Pictures\\Photos 2015-2020', 'Bq5vHk3aqks5Y$BKX6DQsQBxTg'),
+    #    LocalRepo('backup_2015_2020', 'W:\\Photos\\2015-2020', 'Wa26AEk!nENxb5EZ3Cmv*j9&&Q'),
+    #    LocalRepo('nas_2015_2020', 'Y:\\Photos\\2015-2020', 't*gq5V6QC*uayVp^2zwz#J!PJw')
+    #]
     [
-        LocalRepo('folder1', os.path.join(script_dir, 'folder1'), 'wGn*$g63ZXs^peTJGPw&yV7TS#'),
-        LocalRepo('folder2', os.path.join(script_dir, 'folder2'), 'BGr4B5SZjr*HsdRztJ2qCbyJ$9'),
-        LocalRepo('nas_test', 'X:\\Photos\\test', 'wGn*$g63ZXs^peTJGPwcyV7TS#')
-    ],
-    [
-        LocalRepo('local_2015_2020', 'C:\\Users\\jvandewoestyne\\Pictures\\Photos 2015-2020', 'Bq5vHk3aqks5Y$BKX6DQsQBxTg'),
-        LocalRepo('backup_2015_2020', 'W:\\Photos\\2015-2020', 'Wa26AEk!nENxb5EZ3Cmv*j9&&Q'),
-        LocalRepo('nas_2015_2020', 'Y:\\Photos\\2015-2020', 't*gq5V6QC*uayVp^2zwz#J!PJw')
+        LocalRepo('dupe1', '/media/data/nextcloud/Photos.dupes', None),
+        LocalRepo('dupe2', '/media/data/nextcloud/Photos.dupes2', None)
     ]
 ]
 

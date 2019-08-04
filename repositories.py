@@ -189,6 +189,8 @@ class Local(Repository):
         self.rename(from_path, new_path)
 
     def check_access(self):
+        if self.fingerprint is None:
+            return os.path.exists(self.path)
         path = os.path.join(self.path, 'fingerprint')
         if os.path.isfile(path):
             with open(path, 'r') as f:
